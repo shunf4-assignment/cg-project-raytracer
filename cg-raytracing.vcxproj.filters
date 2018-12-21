@@ -1,0 +1,116 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="源文件\common">
+      <UniqueIdentifier>{965bd44f-3305-44f4-b0e6-87929b7fc221}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="头文件\common">
+      <UniqueIdentifier>{46644e35-3551-430a-a663-004bbb1adb11}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="common\common.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\GLImage.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\GLSLProgram.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\GLSLShader.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\logFile.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\shader.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="common\util.cpp">
+      <Filter>源文件\common</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjRobot.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjRaytracer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjTexture.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="common\common.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\myGLClasses.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\myGLElements.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\stb_image.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\stb_image_write.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\utilClasses.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\utilFunctions.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="common\headerForMain.h">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjRobot.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjRaytracer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjTexture.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ProjRobot.frag">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="ProjRobot.vert">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="ProjRaytracer.comp">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="ProjRaytracer.vert">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="projTexture.vert">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="projTexture.frag">
+      <Filter>资源文件</Filter>
+    </None>
+    <None Include="ProjRaytracer.frag">
+      <Filter>资源文件</Filter>
+    </None>
+  </ItemGroup>
+</Project>

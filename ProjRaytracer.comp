@@ -1,0 +1,452 @@
+#version 430
+uniform int WIDTH;
+uniform int HEIGHT;
+
+// 将纹理像素坐标 (0,1024)x(0,1024) 缩放到 (-1,1)x(-1,1) 所乘以的缩放比例
+float SCALENORM = ((WIDTH > HEIGHT) ? (2.0 / WIDTH) : (2.0 / HEIGHT));
+
+// 将缩放为 (-1,1)x(-1,1) 的坐标再还原到 (-CAMERASCALE, CAMERASCALE) (内部坐标)
+uniform float CAMERASCALE;
+
+// 在主程序中, 将每个像素指派给一个 Compute Shader 实例去计算, 所以每个 Compute Shader 的大小是 1x1
+layout (local_size_x = 1, local_size_y = 1) in;
+
+// 计算着色器另一输出: 位置为 0 号的图片(image2D)量, 这个image2D绑定到 Fragment Shader 中的 texture 中, 进而输出到屏幕上.
+layout (rgba32f, binding = 0) uniform image2D imgOutput;
+
+layout (binding = 1) uniform sampler2D planttexture1;
+layout (binding = 2) uniform sampler2D planttexture2;
+layout (binding = 3) uniform sampler2D planttexture3;
+layout (binding = 4) uniform sampler2D planttexture4;
+layout (binding = 5) uniform sampler2D planttexture5;
+layout (binding = 6) uniform sampler2D planttexture6;
+layout (binding = 7) uniform sampler2D planttexture7;
+layout (binding = 8) uniform sampler2D planttexture8;
+
+// 光源位置 x y z
+vec3 lightPosition = vec3(0,0,0);
+
+// 这里的 vec3 里的三个分量, 都是指相对于三个颜色分量的值
+
+// 光源的 镜面反射强度 和 物体的 镜面反射强度(可看作与球本征颜色有关) (之后会做一乘法)
+vec3 specularStrength[9] = 
+{
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5)
+};
+vec3 specularColor_sphere[9] = 
+{
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0)
+};
+// 光源的 漫反射强度 和 物体的 漫反射强度(可看作与球本征颜色有关)
+vec3 diffuseStrength[9] =
+{
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5),
+	vec3(0.5, 0.5, 0.5)
+};
+vec3 diffuseColor_sphere[9]= 
+{
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.7, 0.1, 0.4)
+};
+// 光源的 环境光 和 物体的 接受环境光强度(可看作与球本征颜色有关)
+vec3 ambientStrength[9] = 
+{
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1),
+	vec3(0.1, 0.1, 0.1)
+};
+vec3 ambientColor_sphere[9] = 
+{
+	vec3(0.7, 0.1, 0.4),
+	vec3(0.2, 0.8, 0.5),
+	vec3(0.8, 0.3, 0.4),
+	vec3(0.3, 0.2, 0.9),
+	vec3(0.6, 0.1, 0.4),
+	vec3(0.2, 0.28, 0.5),
+	vec3(0.8, 0.63, 0.4),
+	vec3(0.3, 0.2, 0.19),
+	vec3(0.1, 0.1, 0.1)
+};
+
+// 行星球标准半径
+const float shrunk = 2.5;
+//float sphereRadius[8] = {3.4*shrunk, 6.0*shrunk, 6.3*shrunk, 3.3*shrunk,15.4*shrunk,60.2*shrunk,25.5*shrunk,24.7*shrunk};
+float sphereRadius[9] = {3.4*shrunk, 6.0*shrunk, 6.3*shrunk, 3.3*shrunk,15.4*shrunk,14.0*shrunk,25.5*shrunk,24.7*shrunk, 0};
+
+vec3 sphereCenter[9];
+
+// 光线打到每个行星球上对应的texel颜色
+vec4 texel_sphere[9];
+
+// 反光度, 作为计算镜面反射时对 cosine 值的指数
+float shiniess[9] = {30.0,30.0,30.0,30.0,30.0,30.0,30.0,30.0,200.0};
+
+// 当前时间
+uniform float time;
+
+// 一次反射光叠加到 Phong 光照效果上所乘以的衰减量
+float ya = 0.4;
+
+// 行星公转半径标准量
+const float shrunk2 = 0.15;
+
+// 各行星公转半径
+//const float a[8] = {5.7/shrunk2, 10.8/shrunk2, 14.9/shrunk2, 52.7/shrunk2,77.8/shrunk2,142.6/shrunk2,287.0/shrunk2,449.8/shrunk2};
+const float a[8] = {5.7/shrunk2, 10.8/shrunk2, 14.9/shrunk2, 22.7/shrunk2,30.8/shrunk2,43.6/shrunk2,62.0/shrunk2,82.8/shrunk2};
+
+// 各行星公转周期
+const float period[8]={36.5/28.9,  36.5/224.7,  36.5/265.2,  36.5/686.9,  0.1/11.8,  0.1/29.448,0.1/84.0,0.1/164.7};
+
+// 各行星自转周期
+//const float selfperiod[8] ={10/58, 10/243, 10, 10/1.026, 10/0.413, 10/0.44, 10/0.718, 10/0.67};
+float selfperiod[9] ={10/58, 10/243, 10, 10/1.026, 10/0.413, 10/0.44, 10/0.718, 10/0.67, 0};
+
+// 行星公转半径修饰量
+const float alpha[8] = {7.0,3.4,0,1.9,1.3,2.5,0.8,17.1};
+
+// 行星初始旋转角
+const float theta[8] = {7.0,3.4,0,1.9,1.3,2.5,0.8,17.1};
+
+// 当前 (-1,1)x(-1,1) 坐标
+vec2 coord;
+
+uniform int paintNum;
+//const int paintNum = 9;
+
+// 计算和球的交点的 t 值
+float intersectSphere(in vec3 rayViewingPoint, in vec3 rayDirection, in vec3 sphereCenter, in float sphereRadius)
+{	
+	float t = 1.0 / 0.0;
+
+	vec3 fromSphereCenterToView = rayViewingPoint - sphereCenter;
+	float b = dot(rayDirection, fromSphereCenterToView);
+	float c = dot(fromSphereCenterToView, fromSphereCenterToView) - sphereRadius * sphereRadius;
+	float delta = b * b - c;
+	
+	if (delta >= 0.0)
+	{
+		float sqrtDelta = sqrt(delta);
+		float t1 = -b - sqrtDelta;
+		float t2 = -b + sqrtDelta;
+
+		t = abs(t1) < abs(t2) ? t1 : t2;
+	}
+
+	return t;
+}
+
+float Min(in float a, in float b)
+{
+	return a < b ? a : b;
+}
+
+float Max(in float a, in float b)
+{
+	return a > b ? a : b;
+}
+
+// 根据行星贴图, 重新计算这个行星(根据id)在这个点的颜色
+void getColor(in vec3 mycoord , in int id)
+{
+
+	vec2 texcoord;
+
+	vec3 bcoord = mycoord - sphereCenter[id] ;
+	texcoord.y = (bcoord.z / sphereRadius[id]+1)/4;
+	
+	float newx = atan(bcoord.y,bcoord.x) / 3.141593;
+
+	newx = (newx+1)/2 +time*selfperiod[id] * 0.1;
+
+	texcoord.x = newx - int(newx) ;
+
+	if (id==paintNum - 1)
+	{
+		ambientColor_sphere[id] = (((int(texcoord.x * 32) % 2) ^ (int(texcoord.y * 512) % 2)) == 0) ? vec3(1,1,1) : vec3(0,0,0);
+		diffuseColor_sphere[id] = (((int(texcoord.x * 32) % 2) ^ (int(texcoord.y * 512) % 2)) == 0) ? vec3(1,1,1) : vec3(0,0,0) ;
+		return;
+	}
+
+	switch(id)
+	{
+		case 0:
+		ambientColor_sphere[id] =  texture(planttexture1 , texcoord).rgb ;
+		diffuseColor_sphere[id] =texture(planttexture1 , texcoord).rgb;
+		break;
+
+		case 1:
+		ambientColor_sphere[id] =  texture(planttexture2 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture2 , texcoord).rgb;
+		break;
+
+		case 2:
+		ambientColor_sphere[id] =  texture(planttexture3 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture3 , texcoord).rgb;
+		break;
+
+		case 3:
+		ambientColor_sphere[id] =  texture(planttexture4 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture4 , texcoord).rgb;
+		break;
+
+		case 4:
+		ambientColor_sphere[id] =  texture(planttexture5 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture5 , texcoord).rgb;
+		break;
+
+		case 5:
+		ambientColor_sphere[id] =  texture(planttexture6 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture6, texcoord).rgb;
+		break;
+
+		case 6:
+		ambientColor_sphere[id] =  texture(planttexture7 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture7 , texcoord).rgb;
+		break;
+
+		case 7:
+		ambientColor_sphere[id] =  texture(planttexture8 , texcoord).rgb ;
+		diffuseColor_sphere[id ] =texture(planttexture8 , texcoord).rgb;
+	}
+}
+
+// 根据 Phong 计算这个行星的光照颜色
+float lightSphere(in vec3 rayViewingPoint, in vec3 rayDirection, in int id, inout vec4 inout_texel, in float curr_min_t)
+{
+	float t;
+
+	t = intersectSphere(rayViewingPoint, rayDirection, sphereCenter[id], sphereRadius[id]);
+
+	if (!isinf(t) && t >= 0.0 && t < curr_min_t)
+	{
+		// 当 t 大于 0 时, 球在视线的前面, 可以看到
+		vec3 spherePoint = rayViewingPoint + rayDirection * t;
+
+		// 重新生成这个行星在该表面点的颜色特征
+		getColor(spherePoint,id);
+
+		// 加氛围光
+		vec3 sphereNormal = normalize(spherePoint - sphereCenter[id]);
+		vec3 lightDirection = normalize(spherePoint - lightPosition);
+		
+		inout_texel.rgb = ambientStrength[id] * ambientColor_sphere[id];
+
+		// 加散射光
+		float cosine = max(dot(sphereNormal, -lightDirection), 0.0);
+		if(isinf(cosine))
+			cosine = 0.0;
+		inout_texel.rgb += diffuseStrength[id] * diffuseColor_sphere[id] * cosine;
+		
+		// 加反射光
+		vec3 reflectedDirection = reflect(lightDirection, sphereNormal);
+		vec3 fromSpherePointToView = rayViewingPoint - spherePoint;
+		cosine = max(dot(normalize(reflectedDirection), normalize(fromSpherePointToView)), 0.0);
+		if(isinf(cosine))
+			cosine = 0.0;
+		float specFactor = pow(cosine, shiniess[id]);
+		inout_texel.rgb += specularStrength[id] * specularColor_sphere[id] * specFactor;
+	}
+
+	return t;
+}
+
+void getPosition(in float mytime)
+{
+
+	for(int i = 0  ;i<paintNum - 2;i++)
+	{
+		float angle = period[i]*mytime + theta[i];
+		sphereCenter[i] = vec3(a[i]*sin(angle),a[i]*cos(angle),0);
+	}
+	// 用来对照的球
+	sphereCenter[paintNum-2] = vec3(-120,80,30);
+	// 地板球
+	sphereCenter[paintNum-1] = vec3(0,0,-900);
+
+}
+
+uniform vec3 rayViewingPoint_center;
+uniform vec3 rayViewingPoint_east;
+uniform vec3 rayViewingPoint_north;
+vec3 rayDirection = normalize(-rayViewingPoint_center);
+
+void main()
+{
+	sphereRadius[paintNum - 1] = 860;
+	selfperiod[paintNum - 1] = 0;
+
+	// 最终要绘制到本着色器实例对应像素点的颜色, 初始置为不透明黑
+	vec4 texel = vec4(0.0, 0.0, 0.0, 1.0);
+
+	getPosition(time);
+
+	// 获取本着色器调用实例(Shader Invocation)对应像素点的坐标(其实对应本实例的x y z编号, 由于 z 恒为 0, 只取 x y). 在 (0,1023)x(0,1023) 间
+	ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+
+	// 将像素点坐标缩放到 (-1,1)x(-1,1)
+	coord = vec2(float(texCoord.x * SCALENORM - 1.0), float(texCoord.y * SCALENORM - 1.0));
+
+	for(int i = 0; i < paintNum; ++i)
+		texel_sphere[i] = vec4(0.0, 0.0, 0.0, 1.0);
+
+	// 本着色器采用正射投影, 所以投影面在 (-CAMERASCALE, CAMERASCALE)x(-CAMERASCALE, CAMERASCALE) 之间
+	// 投影平面平行于 xOy 平面, z 大于 0, 视线沿 z 负方向, 和 OpenGL 一致
+	// 转换到计算着色器内部坐标, 产生投影点位置和视线(光线的反向)向量
+	//vec3 rayViewingPoint = vec3(coord.xy * vec2(CAMERASCALE, CAMERASCALE), 50.0);
+
+	//const int k = 750;
+	//vec3 rayViewingPoint = vec3(0.0, k, k);
+	//vec3 rayPixelPoint = vec3(coord.xy * vec2(CAMERASCALE, CAMERASCALE), 0.0);
+	//vec3 rayDirection = normalize(rayPixelPoint - rayViewingPoint);
+
+	vec3 rayViewingPoint = rayViewingPoint_center;
+	rayViewingPoint.x += (coord.x * rayViewingPoint_east.x + coord.y * rayViewingPoint_north.x) * CAMERASCALE;
+	rayViewingPoint.y += (coord.x * rayViewingPoint_east.y + coord.y * rayViewingPoint_north.y) * CAMERASCALE;
+	rayViewingPoint.z += (coord.x * rayViewingPoint_east.z + coord.y * rayViewingPoint_north.z) * CAMERASCALE;
+
+	
+
+	//rayViewingPoint = vec3(1000,coord.xy * vec2(CAMERASCALE, CAMERASCALE));
+
+	// 此时开始计算光线和物体的交
+
+	lightPosition = vec3( 0, 0.0, 0 );
+		
+	//				vec4 texel_sphere = texel;
+	
+	// 我们在解求交点方程的时候, 对于光线用的是参数方程
+	//		x = rayViewingPoint.x + t * rayDirection.x
+	//		y = rayViewingPoint.y + t * rayDirection.y
+	//		z = rayViewingPoint.z + t * rayDirection.z
+	// 所以 t 值可用来表征物体的远近
+
+	//				float t_sphere = lightSphere(rayViewingPoint, rayDirection, sphereCenter, sphereRadius, texel_sphere);
+
+	// 选取最近的 t
+	float select_t_sphere = 1.0 / 0.0;
+	int select_id_sphere = -1;
+	float t_sphere[9];
+	for(int i = 0; i < paintNum; ++i)
+	{
+		t_sphere[i] = lightSphere(rayViewingPoint, rayDirection, i, texel_sphere[i], select_t_sphere);
+		if(t_sphere[i] < select_t_sphere)
+		{
+			select_t_sphere = t_sphere[i];
+			select_id_sphere = i;
+		}
+	}
+
+	if(select_id_sphere != -1)
+	{
+		vec3 rayViewingPoint1 = rayViewingPoint + t_sphere[select_id_sphere] * rayDirection;
+		vec3 sphereNormal1 = normalize(rayViewingPoint1 - sphereCenter[select_id_sphere]);
+		vec3 rayDirection1 = sphereNormal1 * 2.0 * dot(sphereNormal1, -rayDirection) + rayDirection;
+
+		float select_t_sphere1 = 1.0 / 0.0;
+		int select_id_sphere1 = -1;
+		float t_sphere1[9];
+		vec4 texel1 = vec4(0.0, 0.0, 0.0, 0.0);
+		vec4 texel_sphere1[9];
+		for(int j = 0; j < paintNum; ++j)
+			texel_sphere1[j] = texel1;
+		for(int j = 0; j < paintNum; ++j)
+		{
+			if(j == select_id_sphere)
+				continue;
+			t_sphere1[j] = lightSphere(rayViewingPoint1, rayDirection1, j, texel_sphere1[j], select_t_sphere1);
+			if(t_sphere1[j] > 0 && t_sphere1[j] < select_t_sphere1)
+			{
+				select_t_sphere1 = t_sphere1[j];
+				select_id_sphere1 = j;
+			}			
+		}
+
+		if(select_id_sphere1 != -1)
+		{
+			vec3 rayViewingPoint2 = rayViewingPoint1 + t_sphere1[select_id_sphere1] * rayDirection1;
+			vec3 sphereNormal2 = normalize(rayViewingPoint1 - sphereCenter[select_id_sphere1]);
+			vec3 rayDirection2 = sphereNormal2 * 2.0 * dot(sphereNormal2, -rayDirection1) + rayDirection1;
+
+			float select_t_sphere2 = 1.0 / 0.0;
+			int select_id_sphere2 = -1;
+			float t_sphere2[9];
+			vec4 texel2 = vec4(0.0, 0.0, 0.0, 0.0);
+			vec4 texel_sphere2[9];
+			for(int k = 0; k < paintNum; ++k)
+				texel_sphere2[k] = texel2;
+			for(int k = 0; k < paintNum; ++k)
+			{
+				if(k == select_id_sphere1)
+					continue;
+				t_sphere2[k] = lightSphere(rayViewingPoint2, rayDirection2, k, texel_sphere2[k], select_t_sphere2);
+				if(t_sphere2[k] > 0 && t_sphere2[k] < select_t_sphere2)
+				{
+					select_t_sphere2 = t_sphere2[k];
+					select_id_sphere2 = k;
+				}			
+			}
+			texel2 = (!isinf(select_t_sphere2)) ? texel_sphere2[select_id_sphere2] : texel2;
+			texel_sphere1[select_id_sphere1] += ya * texel2;
+		}
+	
+		texel1 = (!isinf(select_t_sphere1)) ? texel_sphere1[select_id_sphere1] : texel1;
+		texel_sphere[select_id_sphere] += ya * texel1;
+	}
+
+	texel = (!isinf(select_t_sphere)) ? texel_sphere[select_id_sphere] : texel;
+
+	if (distance(lightPosition, rayViewingPoint) < select_t_sphere) {
+		float lookStraight = dot(rayDirection, normalize(lightPosition - rayViewingPoint));
+		if (lookStraight > 0.99990) {
+			texel.rgb += vec3(1.0, 1.0, 1.0) * pow((lookStraight - 0.99990) * 10000, 5);
+		}
+	}
+
+	// Gamma 校正
+	texel.rgb = pow(texel.rgb,  vec3 (1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
+	
+	//vec2 imagecoord = vec2 ((coord.x+1)/2,(coord.y+1)/2);
+	//vec4 imageTexel = texture(planttexture5 ,imagecoord );
+	//texel.rgb = imageTexel.rgb;
+	// 最后把 texel 写入图像
+	imageStore(imgOutput, texCoord, texel);
+
+}
+
+
